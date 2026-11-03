@@ -1,0 +1,9 @@
+/.gradle
+/build
+/*/build
+local.properties
+.idea/
+app_pojavlauncher/.cxx/
+.vs/
+/curseforge_key.txt
+/app_pojavlauncher/libs/ltw-release.aar

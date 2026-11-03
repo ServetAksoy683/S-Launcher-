@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="control_button_color">#4CC4C4C4</color>
+    <color name="control_button_pressed_color">#4D000000</color>
+
+    <!-- S-Launcher palette: black / gold-yellow / white -->
+    <color name="s_gold">#FFC400</color>
+    <color name="s_gold_light">#FFE066</color>
+    <color name="s_gold_dark">#C99700</color>
+    <color name="s_card">#141414</color>
+    <color name="s_card_pressed">#2E2400</color>
+
+    <color name="minebutton_color">#FFC400</color>
+    <color name="background_app">#050505</color>
+    <color name="divider">#59FFC400</color>
+    <color name="background_overlay">#2A2A2A</color>
+    <color name="background_status_bar">#000000</color>
+    <color name="background_bottom_bar">#0C0C0C</color>
+
+    <color name="primary_text">#FFFFFF</color>
+    <color name="secondary_text">#BDBDBD</color>
+</resources>
