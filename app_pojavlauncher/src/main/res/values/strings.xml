@@ -437,4 +437,6 @@
     <string name="s_mods" translatable="false">Modlar</string>
     <string name="s_modpacks" translatable="false">Modpackler</string>
     <string name="s_renderer_mobileglues" translatable="false">MobileGlues (OpenGL 4.x)</string>
+    <string name="s_need_microsoft" translatable="false">Bu özellik için önce Microsoft hesabıyla giriş yapmalısın (Hesap Ekle → Microsoft).</string>
+    <string name="s_renderer_card" translatable="false">Renderer</string>
 </resources>

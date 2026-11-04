@@ -78,11 +78,8 @@ public class MainMenuFragment extends Fragment {
         mNewsButton.setOnClickListener(v -> Tools.openURL(requireActivity(), Tools.URL_HOME));
         mDiscordButton.setOnClickListener(v -> Tools.openURL(requireActivity(), getString(R.string.discord_invite)));
         mCustomControlButton.setOnClickListener(v -> startActivity(new Intent(requireContext(), CustomControlsActivity.class)));
-        mInstallJarButton.setOnClickListener(v -> runInstallerWithConfirmation(false));
-        mInstallJarButton.setOnLongClickListener(v->{
-            runInstallerWithConfirmation(true);
-            return true;
-        });
+        // S-Launcher: this card now switches the renderer of the current profile
+        mInstallJarButton.setOnClickListener(v -> showRendererDialog());
         mEditProfileButton.setOnClickListener(v -> mVersionSpinner.openProfileEditor(requireActivity()));
 
         mPlayButton.setOnClickListener(v -> ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true));
@@ -123,8 +120,12 @@ public class MainMenuFragment extends Fragment {
 
     private void runInstallerWithConfirmation(boolean isCustomArgs) {
         // avoid using custom installers to install a version
-        if(Tools.isLocalProfile(requireContext()) || Tools.isDemoProfile(requireContext())){
+        if(Tools.isDemoProfile(requireContext())){
             Toast.makeText(requireContext(), R.string.toast_not_available_demo, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if(Tools.isLocalProfile(requireContext())){
+            Toast.makeText(requireContext(), R.string.s_need_microsoft, Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -141,5 +142,29 @@ public class MainMenuFragment extends Fragment {
             mLogoPulse = null;
         }
         super.onDestroyView();
+    }
+
+    /** Lets the user pick the renderer (OpenGL translation layer) of the selected profile */
+    private void showRendererDialog() {
+        final Tools.RenderersList list = Tools.getCompatibleRenderers(requireContext());
+        final MinecraftProfile profile = LauncherProfiles.getCurrentProfile();
+        final int count = list.rendererIds.size();
+        final String[] names = new String[count + 1];
+        names[0] = "Varsayılan (genel ayar)";
+        int checked = 0;
+        for(int i = 0; i < count; i++) {
+            names[i + 1] = list.rendererDisplayNames[i];
+            if(list.rendererIds.get(i).equals(profile.pojavRendererName)) checked = i + 1;
+        }
+        new android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Renderer (seçili profil için)")
+                .setSingleChoiceItems(names, checked, (d, which) -> {
+                    profile.pojavRendererName = which == 0 ? null : list.rendererIds.get(which - 1);
+                    LauncherProfiles.write();
+                    d.dismiss();
+                    Toast.makeText(requireContext(), names[which] + " seçildi", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 }

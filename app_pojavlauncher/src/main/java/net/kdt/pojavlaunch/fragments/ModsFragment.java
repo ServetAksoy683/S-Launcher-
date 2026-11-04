@@ -11,6 +11,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
+import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -86,6 +87,11 @@ public class ModsFragment extends Fragment {
     private TextView mStatus;
     private BaseAdapter mAdapter;
     private int mSearchToken = 0;
+    private static final int PAGE_SIZE = 50;
+    private int mOffset = 0;
+    private int mTotalHits = 0;
+    private boolean mLoadingPage = false;
+    private String mLastQuery = "";
 
     private int dp(float v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
@@ -208,6 +214,18 @@ public class ModsFragment extends Fragment {
             }
         };
         list.setAdapter(mAdapter);
+        list.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(AbsListView view, int scrollState) {
+            }
+
+            @Override
+            public void onScroll(AbsListView view, int first, int visible, int total) {
+                if (total > 0 && first + visible >= total - 6 && !mLoadingPage && mHits.size() < mTotalHits) {
+                    loadPage();
+                }
+            }
+        });
         list.setOnItemClickListener((parent, view, position, id) -> onHitClicked(mHits.get(position)));
         root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -237,18 +255,36 @@ public class ModsFragment extends Fragment {
 
     // ------------------------------------------------------------------ search
 
+    /** Starts a new search from the first page */
     private void search() {
-        final String query = mSearchEdit.getText().toString().trim();
+        mSearchToken++;
+        mHits.clear();
+        mAdapter.notifyDataSetChanged();
+        mOffset = 0;
+        mTotalHits = 0;
+        mLoadingPage = false;
+        mLastQuery = mSearchEdit.getText().toString().trim();
+        loadPage();
+    }
+
+    /** Loads the next page of the current search (called again while scrolling) */
+    private void loadPage() {
+        if (mLoadingPage) return;
+        mLoadingPage = true;
+        final String query = mLastQuery;
         final int type = mType;
-        final int token = ++mSearchToken;
-        mStatus.setText("Aranıyor…");
+        final int token = mSearchToken;
+        final int offset = mOffset;
+        mStatus.setText(offset == 0 ? "Aranıyor…" : "Daha fazla yükleniyor…");
         PojavApplication.sExecutorService.execute(() -> {
             try {
                 String facets = "[[\"project_type:" + TYPES[type] + "\"]]";
-                String url = API + "/search?limit=40&index=" + (query.isEmpty() ? "downloads" : "relevance")
+                String url = API + "/search?limit=" + PAGE_SIZE + "&offset=" + offset
+                        + "&index=" + (query.isEmpty() ? "downloads" : "relevance")
                         + "&facets=" + URLEncoder.encode(facets, "UTF-8")
                         + (query.isEmpty() ? "" : "&query=" + URLEncoder.encode(query, "UTF-8"));
                 JsonObject root = new JsonParser().parse(DownloadUtils.downloadString(url)).getAsJsonObject();
+                final int total = root.has("total_hits") ? root.get("total_hits").getAsInt() : 0;
                 JsonArray hits = root.getAsJsonArray("hits");
                 final List<Hit> result = new ArrayList<>();
                 for (JsonElement e : hits) {
@@ -263,14 +299,18 @@ public class ModsFragment extends Fragment {
                 }
                 ui(() -> {
                     if (token != mSearchToken) return;
-                    mHits.clear();
+                    mLoadingPage = false;
                     mHits.addAll(result);
+                    mOffset = offset + result.size();
+                    mTotalHits = total;
                     mAdapter.notifyDataSetChanged();
-                    mStatus.setText(result.isEmpty() ? "Sonuç bulunamadı." : result.size() + " sonuç");
+                    mStatus.setText(mHits.isEmpty() ? "Sonuç bulunamadı." : mHits.size() + " / " + total + " sonuç");
                 });
             } catch (Exception e) {
                 ui(() -> {
-                    if (token == mSearchToken) mStatus.setText("Bağlantı hatası: " + e.getMessage());
+                    if (token != mSearchToken) return;
+                    mLoadingPage = false;
+                    mStatus.setText("Bağlantı hatası: " + e.getMessage());
                 });
             }
         });

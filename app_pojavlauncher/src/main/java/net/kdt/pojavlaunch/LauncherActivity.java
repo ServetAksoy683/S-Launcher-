@@ -1,5 +1,8 @@
 package net.kdt.pojavlaunch;
 
+import net.kdt.pojavlaunch.fragments.ProfileFragment;
+import net.kdt.pojavlaunch.utils.SkinUtils;
+import net.kdt.pojavlaunch.value.MinecraftAccount;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 import android.Manifest;
 import android.app.NotificationManager;
@@ -9,6 +12,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -62,6 +67,9 @@ public class LauncherActivity extends BaseActivity {
     private mcAccountSpinner mAccountSpinner;
     private FragmentContainerView mFragmentView;
     private ImageButton mSettingsButton;
+    private View mProfilePill;
+    private ImageView mProfileFace;
+    private TextView mProfileText;
     private ProgressLayout mProgressLayout;
     private ProgressServiceKeeper mProgressServiceKeeper;
     private ModloaderInstallTracker mInstallTracker;
@@ -72,7 +80,8 @@ public class LauncherActivity extends BaseActivity {
         @Override
         public void onFragmentResumed(@NonNull FragmentManager fm, @NonNull Fragment f) {
             mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), f instanceof MainMenuFragment
-                    ? R.drawable.ic_menu_settings : R.drawable.ic_menu_home));
+                    ? R.drawable.ic_s_settings : R.drawable.ic_s_home));
+            refreshProfilePill();
         }
     };
 
@@ -212,6 +221,13 @@ public class LauncherActivity extends BaseActivity {
         ProgressKeeper.addTaskCountListener((mProgressServiceKeeper = new ProgressServiceKeeper(this)));
 
         mSettingsButton.setOnClickListener(mSettingButtonListener);
+        mProfilePill.setOnClickListener(v -> {
+            Fragment current = getSupportFragmentManager().findFragmentById(mFragmentView.getId());
+            if(!(current instanceof ProfileFragment)) {
+                Tools.swapFragment(this, ProfileFragment.class, ProfileFragment.TAG, null);
+            }
+        });
+        refreshProfilePill();
         ProgressKeeper.addTaskCountListener(mProgressLayout);
         ExtraCore.addExtraListener(ExtraConstants.BACK_PREFERENCE, mBackPreferenceListener);
         ExtraCore.addExtraListener(ExtraConstants.SELECT_AUTH_METHOD, mSelectAuthMethod);
@@ -350,10 +366,22 @@ public class LauncherActivity extends BaseActivity {
         mRequestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
     }
 
+    /** Updates the profile pill (avatar + welcome text) at the top-left of the launcher */
+    public void refreshProfilePill() {
+        if(mProfilePill == null) return;
+        MinecraftAccount account = PojavProfile.getCurrentProfileContent(this, null);
+        int size = getResources().getDimensionPixelSize(R.dimen._32sdp);
+        mProfileFace.setImageBitmap(SkinUtils.avatarFor(account, size));
+        mProfileText.setText(account == null ? "Profil" : "Hoş geldin " + account.username + "!");
+    }
+
     /** Stuff all the view boilerplate here */
     private void bindViews(){
         mFragmentView = findViewById(R.id.container_fragment);
         mSettingsButton = findViewById(R.id.setting_button);
+        mProfilePill = findViewById(R.id.s_profile_pill);
+        mProfileFace = findViewById(R.id.s_profile_face);
+        mProfileText = findViewById(R.id.s_profile_text);
         mAccountSpinner = findViewById(R.id.account_spinner);
         mProgressLayout = findViewById(R.id.progress_layout);
     }

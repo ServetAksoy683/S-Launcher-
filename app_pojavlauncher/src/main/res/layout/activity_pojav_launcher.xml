@@ -8,6 +8,7 @@
 
     <com.kdt.mcgui.mcAccountSpinner
         android:id="@+id/account_spinner"
+        android:visibility="invisible"
         android:layout_width="match_parent"
         android:layout_height="@dimen/_52sdp"
 
@@ -15,6 +16,53 @@
         android:dropDownVerticalOffset="@dimen/_52sdp"
 
         app:layout_constraintTop_toTopOf="parent" />
+
+
+    <!-- S-Launcher top bar background (the account spinner underneath is kept only for its logic) -->
+    <View
+        android:id="@+id/s_top_bg"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/background_status_bar"
+        app:layout_constraintBottom_toBottomOf="@id/account_spinner"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/s_profile_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/_36sdp"
+        android:layout_marginStart="@dimen/_8sdp"
+        android:background="@drawable/s_pill_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/_2sdp"
+        android:paddingEnd="@dimen/_14sdp"
+        app:layout_constraintBottom_toBottomOf="@id/account_spinner"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/account_spinner">
+
+        <ImageView
+            android:id="@+id/s_profile_face"
+            android:layout_width="@dimen/_32sdp"
+            android:layout_height="@dimen/_32sdp"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/s_profile_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/_8sdp"
+            android:ellipsize="end"
+            android:fontFamily="@font/noto_sans_bold"
+            android:maxLines="1"
+            android:text="Profil"
+            android:textColor="@android:color/white"
+            android:textSize="@dimen/_12ssp" />
+    </LinearLayout>
 
     <ImageButton
         android:id="@+id/setting_button"
