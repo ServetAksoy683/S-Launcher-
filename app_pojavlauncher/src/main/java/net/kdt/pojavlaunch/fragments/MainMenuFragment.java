@@ -150,7 +150,7 @@ public class MainMenuFragment extends Fragment {
         final MinecraftProfile profile = LauncherProfiles.getCurrentProfile();
         final int count = list.rendererIds.size();
         final String[] names = new String[count + 1];
-        names[0] = "Varsayılan (genel ayar)";
+        names[0] = "Otomatik (varsayılan)";
         int checked = 0;
         for(int i = 0; i < count; i++) {
             names[i + 1] = list.rendererDisplayNames[i];

@@ -50,4 +50,8 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">match_parent</item>
     </style>
+    <style name="S_SheetAnimation">
+        <item name="android:windowEnterAnimation">@anim/s_sheet_in</item>
+        <item name="android:windowExitAnimation">@anim/s_sheet_out</item>
+    </style>
 </resources>

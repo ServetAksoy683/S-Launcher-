@@ -145,6 +145,8 @@ public class ModsFragment extends Fragment {
         mSearchEdit.setHintTextColor(Color.parseColor("#80FFFFFF"));
         mSearchEdit.setTextColor(Color.WHITE);
         mSearchEdit.setSingleLine(true);
+        mSearchEdit.setFocusable(true);
+        mSearchEdit.setFocusableInTouchMode(true);
         mSearchEdit.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         mSearchEdit.setBackgroundResource(R.drawable.s_card_bg);
         mSearchEdit.setPadding(dp(12), dp(8), dp(12), dp(8));

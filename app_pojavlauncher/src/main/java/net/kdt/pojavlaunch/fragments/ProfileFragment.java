@@ -1,9 +1,11 @@
 package net.kdt.pojavlaunch.fragments;
 
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -11,12 +13,15 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -37,22 +42,35 @@ import net.kdt.pojavlaunch.PojavProfile;
 import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.utils.DownloadUtils;
+import net.kdt.pojavlaunch.utils.SheetDialog;
 import net.kdt.pojavlaunch.utils.SkinUtils;
 import net.kdt.pojavlaunch.value.MinecraftAccount;
 
 import java.io.File;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
  * S-Launcher profile panel: character preview and skin import on the left,
- * nickname, account switching and sign out on the right.
+ * nickname, friends (beta), account switching and sign out on the right.
  */
 public class ProfileFragment extends Fragment {
     public static final String TAG = "ProfileFragment";
     private static final Pattern NICK_PATTERN = Pattern.compile("^[A-Za-z0-9_]{3,16}$");
+    private static final String FRIENDS_PREFS = "s_friends";
+    private static final String FRIENDS_KEY = "list";
+
+    private interface TextHandler {
+        /** @return true if the input was accepted and the dialog can close */
+        boolean accept(String text);
+    }
 
     private final ActivityResultLauncher<String> mSkinPicker =
             registerForActivityResult(new ActivityResultContracts.GetContent(), this::onSkinPicked);
@@ -61,9 +79,7 @@ public class ProfileFragment extends Fragment {
     private ImageView mCharacter;
     private TextView mNameView;
     private TextView mTypeView;
-    private EditText mNickEdit;
-    private Button mSaveNick;
-    private Button mCopyUuid;
+    private TextView mNickValue;
     private boolean mLandscape;
 
     private int dp(float v) {
@@ -154,6 +170,7 @@ public class ProfileFragment extends Fragment {
             SkinUtils.deleteSkin(mAccount.username);
             refresh();
             refreshPill();
+            Toast.makeText(requireContext(), "Varsayılan skin geri geldi", Toast.LENGTH_SHORT).show();
         });
         left.addView(resetSkin);
         TextView hint = label("Skin PNG dosyası 64x64 (veya 64x32) olmalı. İçe aktarılan skin launcher'da gösterilir; oyunda görünmesi için sunucu veya skin modu gerekir.",
@@ -174,28 +191,22 @@ public class ProfileFragment extends Fragment {
         nl.topMargin = dp(12);
         right.addView(nickLabel, nl);
 
-        mNickEdit = new EditText(requireContext());
-        mNickEdit.setSingleLine(true);
-        mNickEdit.setTextColor(Color.WHITE);
-        mNickEdit.setHintTextColor(Color.parseColor("#80FFFFFF"));
-        mNickEdit.setBackgroundResource(R.drawable.s_card_bg);
-        mNickEdit.setPadding(dp(12), dp(8), dp(12), dp(8));
-        LinearLayout.LayoutParams el = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
-        el.topMargin = dp(4);
-        right.addView(mNickEdit, el);
+        mNickValue = label("", Color.WHITE, 16, true);
+        mNickValue.setBackgroundResource(R.drawable.s_card_bg);
+        mNickValue.setGravity(Gravity.CENTER_VERTICAL);
+        mNickValue.setPadding(dp(14), 0, dp(14), 0);
+        LinearLayout.LayoutParams vl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+        vl.topMargin = dp(4);
+        right.addView(mNickValue, vl);
+        mNickValue.setOnClickListener(v -> showRenameDialog());
 
-        mSaveNick = button("KAYDET", true);
-        mSaveNick.setOnClickListener(v -> saveNick());
-        right.addView(mSaveNick);
+        Button rename = button("ADI DEĞİŞTİR", true);
+        rename.setOnClickListener(v -> showRenameDialog());
+        right.addView(rename);
 
-        mCopyUuid = button("UUID'Yİ KOPYALA", false);
-        mCopyUuid.setOnClickListener(v -> {
-            if (mAccount == null) return;
-            ClipboardManager cm = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(ClipData.newPlainText("uuid", mAccount.profileId));
-            Toast.makeText(requireContext(), "Kopyalandı", Toast.LENGTH_SHORT).show();
-        });
-        right.addView(mCopyUuid);
+        Button copyUuid = button("UUID'Yİ KOPYALA", false);
+        copyUuid.setOnClickListener(v -> copyUuid());
+        right.addView(copyUuid);
 
         View divider = new View(requireContext());
         divider.setBackgroundColor(Color.parseColor("#59FFC400"));
@@ -204,13 +215,12 @@ public class ProfileFragment extends Fragment {
         dl.bottomMargin = dp(8);
         right.addView(divider, dl);
 
-        Button addAccount = button("2. HESAP EKLE", false);
-        addAccount.setOnClickListener(v ->
-                Tools.swapFragment(requireActivity(), SelectAuthFragment.class, SelectAuthFragment.TAG, null));
-        right.addView(addAccount);
+        Button friends = button("ARKADAŞLAR  (BETA)", false);
+        friends.setOnClickListener(v -> showFriendsSheet());
+        right.addView(friends);
 
         Button switchAccount = button("HESAP DEĞİŞTİR", false);
-        switchAccount.setOnClickListener(v -> showSwitchDialog());
+        switchAccount.setOnClickListener(v -> showAccountsSheet());
         right.addView(switchAccount);
 
         Button signOut = button("ÇIKIŞ YAP", false);
@@ -244,37 +254,26 @@ public class ProfileFragment extends Fragment {
         MinecraftAccount acc = mAccount;
         int h = dp(mLandscape ? 200 : 260);
         if (acc == null) {
+            // The question mark is only for "no account at all"
             mNameView.setText("Hesap yok");
-            mTypeView.setText("Henüz giriş yapılmadı — \"2. HESAP EKLE\" ile başla");
-            mNickEdit.setText("");
-            mNickEdit.setEnabled(false);
-            mSaveNick.setEnabled(false);
-            mCopyUuid.setEnabled(false);
+            mTypeView.setText("Henüz giriş yapılmadı — HESAP DEĞİŞTİR → Hesap ekle");
+            mNickValue.setText("—");
             mCharacter.setImageBitmap(SkinUtils.placeholder(null, h / 2));
             return;
         }
-        boolean local = acc.isLocal();
         mNameView.setText(acc.username);
-        mTypeView.setText(local ? "Çevrimdışı hesap" : "Microsoft hesabı");
-        mNickEdit.setText(acc.username);
-        mNickEdit.setEnabled(local);
-        mSaveNick.setEnabled(local);
-        mSaveNick.setAlpha(local ? 1f : 0.4f);
-        mNickEdit.setAlpha(local ? 1f : 0.5f);
-        if (!local) mNickEdit.setHint("Microsoft hesabında ad değiştirilemez");
-        mCopyUuid.setEnabled(!local);
-        mCopyUuid.setAlpha(local ? 0.4f : 1f);
+        mTypeView.setText(acc.isLocal() ? "Çevrimdışı hesap" : "Microsoft hesabı");
+        mNickValue.setText(acc.username);
         loadCharacter(acc, h);
     }
 
     private void loadCharacter(MinecraftAccount acc, int h) {
-        Bitmap skin = SkinUtils.loadSkin(acc.username);
-        if (skin != null) {
-            mCharacter.setImageBitmap(SkinUtils.characterFromSkin(skin, h));
-            return;
-        }
-        mCharacter.setImageBitmap(SkinUtils.placeholder(acc.username, h / 2));
-        if (acc.isLocal() || acc.profileId == null) return;
+        // imported skin, otherwise the default Steve skin
+        Bitmap skin = SkinUtils.skinOrDefault(requireContext(), acc.username);
+        mCharacter.setImageBitmap(SkinUtils.characterFromSkin(skin, h));
+
+        if (acc.isLocal() || acc.profileId == null || SkinUtils.loadSkin(acc.username) != null) return;
+        // Online account without an imported skin: try the real character render
         final String uuid = acc.profileId;
         final String username = acc.username;
         PojavApplication.sExecutorService.execute(() -> {
@@ -298,7 +297,70 @@ public class ProfileFragment extends Fragment {
         if (getActivity() instanceof LauncherActivity) ((LauncherActivity) getActivity()).refreshProfilePill();
     }
 
-    // ----------------------------------------------------------------- actions
+    // ----------------------------------------------------------------- generic UI
+
+    /** Opens a small input dialog (dialog windows reliably show the keyboard) */
+    private void showInputDialog(String title, String initial, String positive, TextHandler handler) {
+        Context ctx = requireContext();
+        FrameLayout wrapper = new FrameLayout(ctx);
+        final EditText input = new EditText(ctx);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setText(initial);
+        input.setSelection(initial.length());
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.parseColor("#80FFFFFF"));
+        wrapper.addView(input, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        wrapper.setPadding(dp(20), dp(8), dp(20), 0);
+
+        final AlertDialog dialog = new AlertDialog.Builder(ctx)
+                .setTitle(title)
+                .setView(wrapper)
+                .setPositiveButton(positive, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        }
+        dialog.show();
+        input.requestFocus();
+        // set after show() so invalid input keeps the dialog open
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (handler.accept(input.getText().toString().trim())) dialog.dismiss();
+        });
+    }
+
+    private LinearLayout row(@Nullable Bitmap avatar, String title, @Nullable String subtitle,
+                             @Nullable String trailing, int trailingColor,
+                             @Nullable View.OnClickListener click) {
+        Context ctx = requireContext();
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackgroundResource(R.drawable.s_card_bg);
+        row.setPadding(dp(12), dp(10), dp(14), dp(10));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.bottomMargin = dp(8);
+        row.setLayoutParams(rp);
+
+        if (avatar != null) {
+            ImageView iv = new ImageView(ctx);
+            iv.setImageBitmap(avatar);
+            row.addView(iv, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        }
+        LinearLayout texts = new LinearLayout(ctx);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(label(title, Color.WHITE, 15, true));
+        if (subtitle != null) texts.addView(label(subtitle, Color.parseColor("#BDBDBD"), 11.5f, false));
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = avatar != null ? dp(12) : 0;
+        row.addView(texts, tp);
+        if (trailing != null) row.addView(label(trailing, trailingColor, 18, true));
+        if (click != null) row.setOnClickListener(click);
+        return row;
+    }
+
+    // ------------------------------------------------------------------ actions
 
     private void onSkinPicked(@Nullable Uri uri) {
         if (uri == null || mAccount == null || !isAdded()) return;
@@ -320,36 +382,59 @@ public class ProfileFragment extends Fragment {
         }
     }
 
-    private void saveNick() {
-        MinecraftAccount acc = mAccount;
-        if (acc == null || !acc.isLocal()) return;
-        String newName = mNickEdit.getText().toString().trim();
-        if (!NICK_PATTERN.matcher(newName).matches()) {
-            Toast.makeText(requireContext(), "Ad 3-16 karakter olmalı (harf, rakam, _)", Toast.LENGTH_LONG).show();
+    private void copyUuid() {
+        if (mAccount == null) {
+            Toast.makeText(requireContext(), "Önce bir hesap ekle", Toast.LENGTH_SHORT).show();
             return;
         }
-        String oldName = acc.username;
-        if (newName.equals(oldName)) return;
-        if (new File(Tools.DIR_ACCOUNT_NEW, newName + ".json").exists()) {
-            Toast.makeText(requireContext(), "Bu adda bir hesap zaten var", Toast.LENGTH_LONG).show();
+        String uuid = mAccount.isLocal()
+                ? UUID.nameUUIDFromBytes(("OfflinePlayer:" + mAccount.username).getBytes(StandardCharsets.UTF_8)).toString()
+                : mAccount.profileId;
+        ClipboardManager cm = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("uuid", uuid));
+        Toast.makeText(requireContext(), "UUID kopyalandı: " + uuid, Toast.LENGTH_LONG).show();
+    }
+
+    private void showRenameDialog() {
+        final MinecraftAccount acc = mAccount;
+        if (acc == null) {
+            Toast.makeText(requireContext(), "Önce bir hesap ekle", Toast.LENGTH_SHORT).show();
             return;
         }
-        try {
-            acc.username = newName;
-            acc.save();
-            File old = new File(Tools.DIR_ACCOUNT_NEW, oldName + ".json");
-            //noinspection ResultOfMethodCallIgnored
-            if (old.exists()) old.delete();
-            File oldSkin = SkinUtils.skinFile(oldName);
-            //noinspection ResultOfMethodCallIgnored
-            if (oldSkin.exists()) oldSkin.renameTo(SkinUtils.skinFile(newName));
-            PojavProfile.setCurrentProfile(requireContext(), newName);
-            Toast.makeText(requireContext(), "Ad değiştirildi: " + newName, Toast.LENGTH_SHORT).show();
-            requireActivity().recreate();
-        } catch (Exception e) {
-            acc.username = oldName;
-            Toast.makeText(requireContext(), "Kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        if (!acc.isLocal()) {
+            Toast.makeText(requireContext(), "Microsoft hesabında ad değiştirilemez", Toast.LENGTH_LONG).show();
+            return;
         }
+        showInputDialog("Kullanıcı adı", acc.username, "KAYDET", text -> {
+            if (!NICK_PATTERN.matcher(text).matches()) {
+                Toast.makeText(requireContext(), "Ad 3-16 karakter olmalı (harf, rakam, _)", Toast.LENGTH_LONG).show();
+                return false;
+            }
+            if (text.equals(acc.username)) return true;
+            if (new File(Tools.DIR_ACCOUNT_NEW, text + ".json").exists()) {
+                Toast.makeText(requireContext(), "Bu adda bir hesap zaten var", Toast.LENGTH_LONG).show();
+                return false;
+            }
+            String oldName = acc.username;
+            try {
+                acc.username = text;
+                acc.save();
+                File old = new File(Tools.DIR_ACCOUNT_NEW, oldName + ".json");
+                //noinspection ResultOfMethodCallIgnored
+                if (old.exists()) old.delete();
+                File oldSkin = SkinUtils.skinFile(oldName);
+                //noinspection ResultOfMethodCallIgnored
+                if (oldSkin.exists()) oldSkin.renameTo(SkinUtils.skinFile(text));
+                PojavProfile.setCurrentProfile(requireContext(), text);
+                Toast.makeText(requireContext(), "Ad değiştirildi: " + text, Toast.LENGTH_SHORT).show();
+                requireActivity().recreate();
+                return true;
+            } catch (Exception e) {
+                acc.username = oldName;
+                Toast.makeText(requireContext(), "Kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                return false;
+            }
+        });
     }
 
     private List<String> accountNames() {
@@ -360,27 +445,97 @@ public class ProfileFragment extends Fragment {
                 if (f.endsWith(".json")) names.add(f.substring(0, f.length() - 5));
             }
         }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
         return names;
     }
 
-    private void showSwitchDialog() {
-        final List<String> names = accountNames();
-        if (names.isEmpty()) {
-            Toast.makeText(requireContext(), "Kayıtlı hesap yok", Toast.LENGTH_SHORT).show();
-            return;
-        }
+    /** Bottom sheet with all accounts and the "add account" row */
+    private void showAccountsSheet() {
+        Context ctx = requireContext();
+        final Dialog[] holder = new Dialog[1];
+        LinearLayout list = new LinearLayout(ctx);
+        list.setOrientation(LinearLayout.VERTICAL);
         String current = mAccount == null ? null : mAccount.username;
-        int checked = current == null ? -1 : names.indexOf(current);
-        new AlertDialog.Builder(requireContext())
-                .setTitle("Hesap seç")
-                .setSingleChoiceItems(names.toArray(new String[0]), checked, (d, which) -> {
-                    d.dismiss();
-                    PojavProfile.setCurrentProfile(requireContext(), names.get(which));
-                    requireActivity().recreate();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+
+        for (String name : accountNames()) {
+            MinecraftAccount acc = MinecraftAccount.load(name);
+            if (acc == null) continue;
+            final boolean isCurrent = name.equals(current);
+            list.addView(row(SkinUtils.avatarFor(ctx, acc, dp(44)), name,
+                    acc.isLocal() ? "Çevrimdışı hesap" : "Microsoft hesabı",
+                    isCurrent ? "✓" : null, gold(), v -> {
+                        holder[0].dismiss();
+                        if (!isCurrent) {
+                            PojavProfile.setCurrentProfile(requireContext(), name);
+                            requireActivity().recreate();
+                        }
+                    }));
+        }
+        list.addView(row(null, "＋  Hesap ekle", "Microsoft veya çevrimdışı hesap", null, 0, v -> {
+            holder[0].dismiss();
+            Tools.swapFragment(requireActivity(), SelectAuthFragment.class, SelectAuthFragment.TAG, null);
+        }));
+        holder[0] = SheetDialog.show(ctx, "HESAPLAR", list);
     }
+
+    // ------------------------------------------------------------------ friends (beta)
+
+    private Set<String> loadFriends() {
+        SharedPreferences sp = requireContext().getSharedPreferences(FRIENDS_PREFS, Context.MODE_PRIVATE);
+        return new HashSet<>(sp.getStringSet(FRIENDS_KEY, new HashSet<>()));
+    }
+
+    private void saveFriends(Set<String> friends) {
+        requireContext().getSharedPreferences(FRIENDS_PREFS, Context.MODE_PRIVATE)
+                .edit().putStringSet(FRIENDS_KEY, friends).apply();
+    }
+
+    private void showFriendsSheet() {
+        Context ctx = requireContext();
+        final Dialog[] holder = new Dialog[1];
+        LinearLayout list = new LinearLayout(ctx);
+        list.setOrientation(LinearLayout.VERTICAL);
+
+        TextView note = label("BETA: arkadaş listesi şimdilik bu cihazda tutulur. Çevrimiçi durum ve davetler sunucu desteğiyle sonraki sürümde gelecek.",
+                Color.parseColor("#9E9E9E"), 11, false);
+        note.setPadding(dp(4), 0, dp(4), dp(10));
+        list.addView(note);
+
+        List<String> sorted = new ArrayList<>(loadFriends());
+        Collections.sort(sorted, String.CASE_INSENSITIVE_ORDER);
+        if (sorted.isEmpty()) {
+            TextView empty = label("Henüz arkadaş eklemedin.", Color.WHITE, 13, false);
+            empty.setPadding(dp(4), dp(4), dp(4), dp(12));
+            list.addView(empty);
+        }
+        for (String friend : sorted) {
+            list.addView(row(SkinUtils.placeholder(friend, dp(44)), friend, "Durum: yakında", "✕",
+                    Color.parseColor("#FF6B6B"), v -> {
+                        Set<String> friends = loadFriends();
+                        friends.remove(friend);
+                        saveFriends(friends);
+                        holder[0].dismiss();
+                        showFriendsSheet();
+                    }));
+        }
+        list.addView(row(null, "＋  Arkadaş ekle", "Kullanıcı adıyla", null, 0, v -> {
+            holder[0].dismiss();
+            showInputDialog("Arkadaş ekle", "", "EKLE", text -> {
+                if (!NICK_PATTERN.matcher(text).matches()) {
+                    Toast.makeText(requireContext(), "Geçerli bir kullanıcı adı yaz (3-16, harf/rakam/_)", Toast.LENGTH_LONG).show();
+                    return false;
+                }
+                Set<String> friends = loadFriends();
+                friends.add(text);
+                saveFriends(friends);
+                showFriendsSheet();
+                return true;
+            });
+        }));
+        holder[0] = SheetDialog.show(ctx, "ARKADAŞLAR (BETA)", list);
+    }
+
+    // ---------------------------------------------------------------- sign out
 
     private void confirmSignOut() {
         if (mAccount == null) {

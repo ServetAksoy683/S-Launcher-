@@ -217,12 +217,6 @@ public class JREUtils {
             if(LOCAL_RENDERER.equals("opengles3_ltw")) {
                 envMap.put("LIBGL_ES", "3");
                 envMap.put("POJAVEXEC_EGL","libltw.so"); // Use ANGLE EGL
-            } else if(LOCAL_RENDERER.equals("opengles3_mobileglues")) {
-                envMap.put("LIBGL_ES", "3");
-                File mgDir = new File(Tools.DIR_GAME_HOME, "MobileGlues");
-                //noinspection ResultOfMethodCallIgnored
-                mgDir.mkdirs();
-                envMap.put("MG_DIR_PATH", mgDir.getAbsolutePath());
             }
         }
         if(LauncherPreferences.PREF_BIG_CORE_AFFINITY) envMap.put("POJAV_BIG_CORE_AFFINITY", "1");
@@ -476,7 +470,6 @@ public class JREUtils {
                 renderLibrary = "libgl4es_114.so"; break;
             case "vulkan_zink": renderLibrary = "libOSMesa.so"; break;
             case "opengles3_ltw" : renderLibrary = "libltw.so"; break;
-            case "opengles3_mobileglues": renderLibrary = "libmobileglues.so"; break;
             default:
                 Log.w("RENDER_LIBRARY", "No renderer selected, defaulting to opengles2");
                 renderLibrary = "libgl4es_114.so";

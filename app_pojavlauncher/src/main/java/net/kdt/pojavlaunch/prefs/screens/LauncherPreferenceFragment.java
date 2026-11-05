@@ -119,8 +119,8 @@ public class LauncherPreferenceFragment extends PreferenceFragmentCompat impleme
         public void onDraw(@NonNull Canvas c, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
             for(int i = 0; i < parent.getChildCount(); i++) {
                 View child = parent.getChildAt(i);
-                // Only real preference rows have a widget frame; category headers do not
-                if(child.findViewById(android.R.id.widget_frame) == null) continue;
+                // Category headers (tagged in s_preference_category.xml) stay plain
+                if("s_category".equals(child.getTag())) continue;
                 RectF r = new RectF(child.getLeft(), child.getTop() + child.getTranslationY(),
                         child.getRight(), child.getBottom() + child.getTranslationY());
                 c.drawRoundRect(r, mRadius, mRadius, mFill);

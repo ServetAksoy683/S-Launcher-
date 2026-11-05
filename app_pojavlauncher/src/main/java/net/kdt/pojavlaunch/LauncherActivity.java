@@ -371,7 +371,7 @@ public class LauncherActivity extends BaseActivity {
         if(mProfilePill == null) return;
         MinecraftAccount account = PojavProfile.getCurrentProfileContent(this, null);
         int size = getResources().getDimensionPixelSize(R.dimen._32sdp);
-        mProfileFace.setImageBitmap(SkinUtils.avatarFor(account, size));
+        mProfileFace.setImageBitmap(SkinUtils.avatarFor(this, account, size));
         mProfileText.setText(account == null ? "Profil" : "Hoş geldin " + account.username + "!");
     }
 

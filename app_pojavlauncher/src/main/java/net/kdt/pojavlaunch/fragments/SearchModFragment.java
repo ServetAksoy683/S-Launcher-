@@ -100,6 +100,13 @@ public class SearchModFragment extends Fragment implements ModItemAdapter.Search
         });
         mFilterButton.setOnClickListener(v -> displayFilterDialog());
 
+        // S-Launcher: featured modpack shortcut
+        View featured = view.findViewById(R.id.search_mod_featured);
+        if(featured != null) featured.setOnClickListener(v -> {
+            mSearchEditText.setText("UniversIO");
+            searchMods("UniversIO");
+        });
+
         searchMods(null);
     }
 

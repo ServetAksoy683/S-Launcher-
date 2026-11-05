@@ -517,7 +517,7 @@ public class MinecraftDownloader {
         
         private void downloadFile() throws Exception {
             if(isLocalProfile){
-                throw new RuntimeException("Download failed. Please make sure you are logged in with a Microsoft Account.");
+                throw new RuntimeException("İndirme başarısız: oyun dosyalarını indirmek için Microsoft hesabıyla giriş yapmalısın (profil hapı → Hesap değiştir → Hesap ekle → Microsoft). / Download failed: log in with a Microsoft account.");
             }
 
             try {

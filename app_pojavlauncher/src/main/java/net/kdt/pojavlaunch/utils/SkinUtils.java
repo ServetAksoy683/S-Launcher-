@@ -1,5 +1,6 @@
 package net.kdt.pojavlaunch.utils;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -12,6 +13,7 @@ import android.graphics.Typeface;
 
 import androidx.annotation.Nullable;
 
+import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.value.MinecraftAccount;
 
@@ -164,16 +166,30 @@ public final class SkinUtils {
         return out;
     }
 
-    /** Round avatar for the account: imported skin first, then the cached online head, then a placeholder */
-    public static Bitmap avatarFor(@Nullable MinecraftAccount account, int size) {
+    /** The bundled default (Steve-like) skin, used when the player has no skin of their own */
+    public static Bitmap defaultSkin(Context context) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inScaled = false;
+        return BitmapFactory.decodeResource(context.getResources(), R.drawable.s_default_skin, options);
+    }
+
+    /** Imported skin if any, otherwise the default one */
+    public static Bitmap skinOrDefault(Context context, String username) {
+        Bitmap skin = loadSkin(username);
+        return skin != null ? skin : defaultSkin(context);
+    }
+
+    /** Round avatar: imported skin, cached online head, then the default skin. Only "no account" shows a "?" */
+    public static Bitmap avatarFor(Context context, @Nullable MinecraftAccount account, int size) {
         if (account == null) return placeholder(null, size);
         try {
             Bitmap skin = loadSkin(account.username);
             if (skin != null) return circle(headFromSkin(skin, 8 * 16), size, true);
             Bitmap head = account.getSkinFace();
             if (head != null) return circle(head, size, true);
+            return circle(headFromSkin(defaultSkin(context), 8 * 16), size, true);
         } catch (Exception ignored) {
+            return placeholder(account.username, size);
         }
-        return placeholder(account.username, size);
     }
 }
